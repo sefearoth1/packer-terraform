@@ -1,0 +1,63 @@
+# Providers utiliser pour Proxmox => Telmate
+
+terraform {
+    required_providers {
+        proxmox =  {
+        source = "Telmate/proxmox"
+        version = "2.9.14"
+        }
+    }
+}
+
+# Informations de connexion Provider utiliser pour la connexion au proxmox
+
+provider "proxmox" {
+    pm_api_url = "https://192.168.1.35:8006/api2/json"
+    pm_api_token_id= "tristan@pve!token"
+    pm_api_token_secret= "bc75b797-e757-4e7d-abf7-dc1108ac36c7"
+    #pm_tls_insecure = true  //for Proxmox self-signed certificate WUI
+}
+
+# clonage et dÃ©ploiement de la machine Debian
+
+resource "proxmox_vm_qemu" "robot2" {
+  name =  "robot2"
+  target_node = "srv1-home"
+  clone = "sauv2"
+
+# Autres paramètres de configuration de la VM...
+
+
+
+    disk {
+        size    = "20G"
+        type    = "scsi"
+        storage = "local-lvm"  # Remplacez par le nom de votre stockage Proxmox
+    }
+
+    memory = "8192"
+    cores  = 2
+
+    network {
+        model    = "virtio"
+        bridge   = "vmbr0"
+        #dhcp     = true
+    }
+
+    connection {
+		type	=	"ssh"
+		user	=	"root"
+		host	=	"null"
+		private_key = file("C:/Users/trist/.ssh/id_rsa")
+    }
+
+  provisioner "remote-exec" {
+        inline = [
+            "sudo apt-get install -y git-all",
+            "sudo apt update && apt upgrade",
+            "sudo mkdir -p /repos/my_repo.git",
+            "cd repos/my_repo.git",
+            "sudo git init --bare"
+        ]
+    }
+}
