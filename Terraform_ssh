@@ -1,0 +1,86 @@
+# Providers utiliser pour Proxmox => Telmate
+
+terraform {
+    required_providers {
+        proxmox =  {
+        source = "Telmate/proxmox"
+        version = "2.9.14"
+        }
+    }
+}
+
+# Informations de connexion Provider utiliser pour la connexion au proxmox
+
+provider "proxmox" {
+    pm_api_url = "http://10.27.0.95:8006/api2/json"
+    pm_api_token_id= "tristano@pve!token"
+    pm_api_token_secret= "78ca5eb8-fcef-484c-96e3-b27008e2f024"
+    #pm_tls_insecure = true  //for Proxmox self-signed certificate WUI
+}
+
+# Déclaration des noms des machines virtuelles
+variable "vm_names" {
+  type    = list(string)
+  default = ["ERP-LIL"]
+}
+
+variable "vm_template" {
+  type    = string
+  default = "templateMotherfucker"
+}
+
+variable "new_ip_address" {
+  type    = string
+  default = "10.27.0.101"
+}
+
+
+
+# clonage et déploiement des machines virtuelles
+resource "proxmox_vm_qemu" "vms" {
+  count = length(var.vm_names)
+  name        = var.vm_names[count.index]
+  target_node = "grp1-srv1"
+  clone       = "templateMotherfucker"
+  full_clone = "false"
+
+  # Autres paramètres de configuration de la VM...
+
+  disk {
+    size    = "20G"
+    type    = "scsi"
+    storage = "dd1"
+  }
+  boot = "order=scsi0"
+  scsihw = "virtio-scsi-single"
+  memory = "4096"
+  cores  = 2
+  #bios = "ovmf"
+  network {
+    model  = "virtio"
+    bridge = "vmbr0"
+  }
+}
+
+resource "null_resource" "ssh_target" {
+depends_on = [proxmox_vm_qemu.vms]
+    provisioner "remote-exec" {
+    connection {
+    type        = "ssh"
+    user        = "root"
+    host        = "10.27.0.99"
+    private_key = file("C:/Users/Apprenant/.ssh/id_rsa")
+  }
+
+
+     inline = [
+      #"sed -i 's/^\\(iface ens18 inet\\).*/\\1 static/' /etc/network/interfaces",#
+      "sed -i 's/address .*$/address ${var.new_ip_address}/' /etc/network/interfaces",
+      #"ifup ens18",
+      #"echo 'address ${var.new_ip_address}' >> /etc/network/interfaces",
+      #"systemctl restart networking",#
+      "hostnamectl set-hostname ERP-LIL",
+      "reboot",
+    ]
+  }
+}
